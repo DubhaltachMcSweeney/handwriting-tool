@@ -1,0 +1,8 @@
+#Virtual python environment
+venv/
+
+#python cache
+__pycahche__/
+
+#Os Files
+.DS_Store
