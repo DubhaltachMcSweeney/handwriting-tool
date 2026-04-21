@@ -2,10 +2,12 @@
 venv/
 
 #python cache
-__pycahche__/
+__pycache__/
+*.py[cod]
 
 #Os Files
 .DS_Store
 
+#models
 models/
 *.pth

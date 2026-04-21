@@ -1,8 +1,15 @@
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA_DIR = PROJECT_ROOT / "data"
+MODEL_PATH = PROJECT_ROOT / "models" / "mnist_model.pth"
 
 
 class SimpleNN(nn.Module):
@@ -23,14 +30,14 @@ def main():
     transform = transforms.ToTensor()
 
     train_dataset = datasets.MNIST(
-        root="./data",
+        root=DATA_DIR,
         train=True,
         download=True,
         transform=transform
     )
 
     test_dataset = datasets.MNIST(
-        root="./data",
+        root=DATA_DIR,
         train=False,
         download=True,
         transform=transform
@@ -74,8 +81,9 @@ def main():
     accuracy = 100 * correct / total
     print(f"Test Accuracy: {accuracy:.2f}%")
 
-    torch.save(model.state_dict(), "mnist_model.pth")
-    print("Model saved to mnist_model.pth")
+    MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(model.state_dict(), MODEL_PATH)
+    print(f"Model saved to {MODEL_PATH}")
 
 
 if __name__ == "__main__":
