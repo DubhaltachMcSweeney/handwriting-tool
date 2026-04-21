@@ -6,3 +6,6 @@ __pycahche__/
 
 #Os Files
 .DS_Store
+
+models/
+*.pth
