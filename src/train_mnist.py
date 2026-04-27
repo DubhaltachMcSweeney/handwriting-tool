@@ -1,10 +1,11 @@
 from pathlib import Path
 
 import torch
-import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+
+from model import DigitCNN
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -12,45 +13,41 @@ DATA_DIR = PROJECT_ROOT / "data"
 MODEL_PATH = PROJECT_ROOT / "models" / "mnist_model.pth"
 
 
-class SimpleNN(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.model = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(28 * 28, 128),
-            nn.ReLU(),
-            nn.Linear(128, 10)
-        )
-
-    def forward(self, x):
-        return self.model(x)
-
-
 def main():
-    transform = transforms.ToTensor()
+    train_transform = transforms.Compose(
+        [
+            transforms.RandomAffine(
+                degrees=15,
+                translate=(0.08, 0.08),
+                scale=(0.9, 1.1),
+            ),
+            transforms.ToTensor(),
+        ]
+    )
+    test_transform = transforms.ToTensor()
 
     train_dataset = datasets.MNIST(
         root=DATA_DIR,
         train=True,
         download=True,
-        transform=transform
+        transform=train_transform
     )
 
     test_dataset = datasets.MNIST(
         root=DATA_DIR,
         train=False,
         download=True,
-        transform=transform
+        transform=test_transform
     )
 
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False)
 
-    model = SimpleNN()
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    model = DigitCNN()
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
 
-    epochs = 3
+    epochs = 5
 
     for epoch in range(epochs):
         model.train()

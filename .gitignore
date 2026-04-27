@@ -1,6 +1,6 @@
 #Virtual python environment
 venv/
-
+.venv/
 #python cache
 __pycache__/
 *.py[cod]
@@ -11,3 +11,7 @@ __pycache__/
 #models
 models/
 *.pth
+
+data/
+corrected_samples/
+samples/processed/data/

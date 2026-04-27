@@ -7,9 +7,11 @@ from PIL import Image
 
 from preprocessing import (
     _background_is_light,
+    _crop_to_content,
     _load_grayscale,
     _resize_and_center,
     digit_array_to_tensor,
+    preprocess_digit_array_from_gray,
 )
 
 
@@ -47,9 +49,13 @@ class _SymbolBox:
     def center_y(self):
         return self.y + self.height / 2
 
+    @property
+    def center_x(self):
+        return self.x + self.width / 2
+
 
 def _padded_bbox(x, y, width, height, image_width, image_height):
-    padding = max(2, int(round(max(width, height) * 0.15)))
+    padding = max(3, int(round(max(width, height) * 0.22)))
     left = max(0, x - padding)
     top = max(0, y - padding)
     right = min(image_width, x + width + padding)
@@ -191,7 +197,7 @@ def _sort_symbols_reading_order(symbols):
     for line in lines:
         line_symbols = list(line)
         line_symbols.extend(_decimal_dots_for_line(dot_boxes, line))
-        ordered_symbols.extend(sorted(line_symbols, key=lambda item: item.x))
+        ordered_symbols.extend(sorted(line_symbols, key=lambda item: item.center_x))
 
     return ordered_symbols
 
@@ -226,8 +232,12 @@ def segment_symbols(image_path):
     segments = []
     for index, symbol in enumerate(_find_symbol_boxes(binary_image)):
         x, y, width, height = symbol.bbox
-        crop = binary_image[y : y + height, x : x + width]
-        centered = _resize_and_center(crop)
+        if symbol.kind == "digit":
+            gray_crop = gray_image[y : y + height, x : x + width]
+            centered = preprocess_digit_array_from_gray(gray_crop)
+        else:
+            crop = _crop_to_content(binary_image[y : y + height, x : x + width])
+            centered = _resize_and_center(crop)
         segments.append(
             DigitSegment(
                 index=index,
