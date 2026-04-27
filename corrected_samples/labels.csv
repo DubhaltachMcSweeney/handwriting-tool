@@ -1,0 +1,4 @@
+timestamp,mode,original_path,saved_image_path,prediction,corrected_label
+20260427_093954,single,samples/raw/digits/digit_3_001_raw.png,/Users/yuxinyu/handwriting-tool/corrected_samples/images/digit_3_001_raw_20260427_093954.png,3,3
+20260427_115432,multi,samples/raw/letters/sentence_alice_was_beginning_001_raw.jpeg,/Users/yuxinyu/handwriting-tool/corrected_samples/images/sentence_alice_was_beginning_001_raw_20260427_115432.jpeg,"HLIOB MAS WEYINHING W GET VQRY TGNPD Y SJTTANG MY HER
+GJSTOI AN QHE BAWK.",Alice was beginning to get very tired of sitting by her sister on the bank.

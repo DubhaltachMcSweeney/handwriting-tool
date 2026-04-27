@@ -63,6 +63,17 @@ def _crop_to_content(binary_image):
     return binary_image[y : y + height, x : x + width]
 
 
+def _normalize_digit_strokes(binary_image):
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+    normalized = cv2.morphologyEx(binary_image, cv2.MORPH_CLOSE, kernel)
+
+    foreground_ratio = float(np.count_nonzero(normalized)) / normalized.size
+    if foreground_ratio < 0.18:
+        normalized = cv2.dilate(normalized, kernel, iterations=1)
+
+    return _crop_to_content(normalized)
+
+
 def _resize_and_center(binary_image, image_size=IMAGE_SIZE, padding=PADDING):
     height, width = binary_image.shape
     inner_size = image_size - 2 * padding
@@ -90,9 +101,13 @@ def digit_array_to_tensor(image_array):
 def preprocess_digit_array(image_path):
     image_path = Path(image_path)
     gray_image = _load_grayscale(image_path)
+    return preprocess_digit_array_from_gray(gray_image)
+
+
+def preprocess_digit_array_from_gray(gray_image):
     foreground_light = _make_foreground_light(gray_image)
     binary_image = _binarize(foreground_light)
-    cropped_image = _crop_to_content(binary_image)
+    cropped_image = _normalize_digit_strokes(_crop_to_content(binary_image))
     return _resize_and_center(cropped_image)
 
 
