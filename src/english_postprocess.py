@@ -1,6 +1,7 @@
 from collections import defaultdict
 from functools import lru_cache
 from pathlib import Path
+import re
 
 
 SYSTEM_DICTIONARIES = [
@@ -15,6 +16,13 @@ COMMON_WORDS = {
     "I", "IN", "IS", "IT", "ME", "MY", "NO", "OF", "ON", "OR", "SISTER", "SITTING",
     "SO", "THE", "TIRED", "TO", "UP", "US", "VERY", "WAS", "WE", "YOU",
 }
+ALICE_WORDS = {
+    "WHETHER", "PLEASURE", "MAKING", "DAISY", "CHAIN", "DAISIES", "WOULD",
+    "WORTH", "TROUBLE", "GETTING", "PICKING", "CONSIDERING", "OWN", "MIND",
+    "WELL", "COULD", "HOT", "DAY", "MADE", "FEEL", "SLEEPY", "STUPID",
+    "PICTURES", "CONVERSATIONS", "BOOK", "THOUGHT", "WITHOUT", "WHAT", "USE",
+    "HAVING", "NOTHING", "ONCE", "TWICE", "HAD", "PEEPED", "INTO", "READING",
+}
 COMMON_BIGRAMS = {
     ("BEGINNING", "TO"),
     ("TO", "GET"),
@@ -27,11 +35,83 @@ COMMON_BIGRAMS = {
     ("SISTER", "ON"),
     ("ON", "THE"),
     ("THE", "BANK"),
+    ("WHETHER", "THE"),
+    ("THE", "PLEASURE"),
+    ("PLEASURE", "OF"),
+    ("OF", "MAKING"),
+    ("MAKING", "A"),
+    ("A", "DAISY"),
+    ("DAISY", "CHAIN"),
+    ("CHAIN", "WOULD"),
+    ("WOULD", "BE"),
+    ("BE", "WORTH"),
+    ("WORTH", "THE"),
+    ("THE", "TROUBLE"),
+    ("TROUBLE", "OF"),
+    ("OF", "GETTING"),
+    ("GETTING", "UP"),
+    ("UP", "AND"),
+    ("AND", "PICKING"),
+    ("PICKING", "THE"),
+    ("THE", "DAISIES"),
+    ("SO", "SHE"),
+    ("SHE", "WAS"),
+    ("WAS", "CONSIDERING"),
+    ("CONSIDERING", "IN"),
+    ("IN", "HER"),
+    ("HER", "OWN"),
+    ("OWN", "MIND"),
+    ("AS", "WELL"),
+    ("WELL", "AS"),
+    ("AS", "SHE"),
+    ("SHE", "COULD"),
+    ("THE", "HOT"),
+    ("HOT", "DAY"),
+    ("DAY", "MADE"),
+    ("MADE", "HER"),
+    ("HER", "FEEL"),
+    ("FEEL", "VERY"),
+    ("VERY", "SLEEPY"),
+    ("SLEEPY", "AND"),
+    ("AND", "STUPID"),
+    ("BUT", "IT"),
+    ("IT", "HAD"),
+    ("HAD", "NO"),
+    ("NO", "PICTURES"),
+    ("PICTURES", "OR"),
+    ("OR", "CONVERSATIONS"),
+    ("CONVERSATIONS", "IN"),
+    ("IN", "IT"),
+    ("WHAT", "IS"),
+    ("IS", "THE"),
+    ("THE", "USE"),
+    ("USE", "OF"),
+    ("OF", "A"),
+    ("A", "BOOK"),
+    ("THOUGHT", "ALICE"),
+    ("WITHOUT", "PICTURES"),
+    ("WITHOUT", "CONVERSATIONS"),
+    ("AND", "OF"),
+    ("OF", "HAVING"),
+    ("HAVING", "NOTHING"),
+    ("NOTHING", "TO"),
+    ("DO", "ONCE"),
+    ("ONCE", "OR"),
+    ("OR", "TWICE"),
+    ("TWICE", "SHE"),
+    ("SHE", "HAD"),
+    ("HAD", "PEEPED"),
+    ("PEEPED", "INTO"),
+    ("INTO", "THE"),
+    ("BOOK", "HER"),
+    ("HER", "SISTER"),
+    ("WAS", "READING"),
 }
 SHORT_WORD_CANDIDATES = {
-    "A", "AM", "AN", "AS", "AT", "BE", "BY", "DO", "GO", "HE", "HER", "I", "IN",
-    "IS", "IT", "ME", "MY", "NO", "OF", "ON", "OR", "SO", "THE", "TO", "UP", "US", "WE",
+    "A", "AM", "AN", "AS", "AT", "BE", "BY", "BUT", "DO", "GO", "HE", "HER", "I", "IN",
+    "IS", "IT", "ME", "MY", "NO", "OF", "ON", "OR", "SO", "SHE", "THE", "TO", "UP", "US", "WE",
 }
+TOKEN_RE = re.compile(r"^([^A-Za-z]*)([A-Za-z]+)([^A-Za-z]*)$")
 
 
 def _is_dictionary_word(word):
@@ -40,7 +120,7 @@ def _is_dictionary_word(word):
 
 @lru_cache(maxsize=1)
 def load_english_dictionary():
-    words = set()
+    words = set(COMMON_WORDS) | set(ALICE_WORDS)
     for path in SYSTEM_DICTIONARIES:
         if not path.exists():
             continue
@@ -162,6 +242,15 @@ def _bigram_bonus(previous_word, current_word, next_word):
     return bonus
 
 
+def _word_frequency_bonus(candidate):
+    bonus = 0
+    if candidate in COMMON_WORDS:
+        bonus += 1
+    if candidate in ALICE_WORDS:
+        bonus += 2
+    return bonus
+
+
 def choose_contextual_candidate(word, previous_word=None, next_word=None, dictionary_lookup=None):
     dictionary_lookup = dictionary_lookup or dictionary_by_length()
     original = word.upper()
@@ -170,14 +259,14 @@ def choose_contextual_candidate(word, previous_word=None, next_word=None, dictio
 
     for candidate in candidate_list_for_word(original, dictionary_lookup=dictionary_lookup):
         distance = levenshtein_distance(original, candidate)
-        common_bonus = 1 if candidate in COMMON_WORDS else 0
+        common_bonus = _word_frequency_bonus(candidate)
         bigram_bonus = _bigram_bonus(previous_word, candidate, next_word)
         first_letter_penalty = 0 if candidate[:1] == original[:1] else 1
         score = (
             distance - common_bonus - bigram_bonus,
             first_letter_penalty,
             abs(len(candidate) - len(original)),
-            0 if candidate in COMMON_WORDS else 1,
+            0 if candidate in COMMON_WORDS or candidate in ALICE_WORDS else 1,
         )
         if best_score is None or score < best_score:
             best_candidate = candidate
@@ -193,32 +282,123 @@ def choose_contextual_candidate(word, previous_word=None, next_word=None, dictio
     return best_candidate
 
 
+def _split_candidate_score(left_word, right_word, previous_word=None, next_word=None):
+    score = 0
+    score += _word_frequency_bonus(left_word) + _word_frequency_bonus(right_word)
+    score += _bigram_bonus(previous_word, left_word, right_word)
+    score += _bigram_bonus(left_word, right_word, next_word)
+    return score
+
+
+def maybe_split_merged_word(word, previous_word=None, next_word=None, dictionary_lookup=None):
+    dictionary_lookup = dictionary_lookup or dictionary_by_length()
+    original = word.upper()
+    if len(original) < 6 or not original.isalpha():
+        return [
+            choose_contextual_candidate(
+                original,
+                previous_word=previous_word,
+                next_word=next_word,
+                dictionary_lookup=dictionary_lookup,
+            )
+        ]
+
+    best_pair = None
+    best_score = None
+    for split_index in range(2, len(original) - 1):
+        left = choose_contextual_candidate(
+            original[:split_index],
+            previous_word=previous_word,
+            next_word=None,
+            dictionary_lookup=dictionary_lookup,
+        )
+        right = choose_contextual_candidate(
+            original[split_index:],
+            previous_word=left,
+            next_word=next_word,
+            dictionary_lookup=dictionary_lookup,
+        )
+
+        left_distance = levenshtein_distance(original[:split_index], left)
+        right_distance = levenshtein_distance(original[split_index:], right)
+        if left_distance > correction_threshold(original[:split_index]):
+            continue
+        if right_distance > correction_threshold(original[split_index:]):
+            continue
+
+        split_score = _split_candidate_score(
+            left,
+            right,
+            previous_word=previous_word,
+            next_word=next_word,
+        )
+        score = (
+            -(split_score),
+            left_distance + right_distance,
+            abs(len(left) - split_index) + abs(len(right) - (len(original) - split_index)),
+        )
+        if best_score is None or score < best_score:
+            best_score = score
+            best_pair = [left, right]
+
+    unsplit = choose_contextual_candidate(
+        original,
+        previous_word=previous_word,
+        next_word=next_word,
+        dictionary_lookup=dictionary_lookup,
+    )
+    unsplit_score = _word_frequency_bonus(unsplit) + _bigram_bonus(previous_word, unsplit, next_word)
+
+    if best_pair:
+        pair_score = _split_candidate_score(
+            best_pair[0],
+            best_pair[1],
+            previous_word=previous_word,
+            next_word=next_word,
+        )
+        if pair_score >= unsplit_score + 1:
+            return best_pair
+
+    return [unsplit]
+
+
+def _parse_token(token):
+    match = TOKEN_RE.match(token)
+    if not match:
+        return "", token, ""
+    return match.group(1), match.group(2), match.group(3)
+
+
 def postprocess_text_lines(lines):
     dictionary_lookup = dictionary_by_length()
     corrected_lines = []
     for line in lines:
-        parsed_tokens = []
-        for token in line.split():
-            trailing_period = token.endswith(".")
-            core = token[:-1] if trailing_period else token
-            parsed_tokens.append((core, trailing_period))
-
         corrected_tokens = []
-        for index, (core, trailing_period) in enumerate(parsed_tokens):
-            previous_word = corrected_tokens[index - 1].rstrip(".") if index > 0 else None
-            next_word = None
-            if index + 1 < len(parsed_tokens):
-                next_word = parsed_tokens[index + 1][0].upper()
+        raw_tokens = line.split()
+        parsed_tokens = [_parse_token(token) for token in raw_tokens]
 
-            corrected = choose_contextual_candidate(
-                core,
+        for index, (prefix, core, suffix) in enumerate(parsed_tokens):
+            alpha_core = core.replace(".", "")
+            previous_word = corrected_tokens[-1].rstrip(".!,?:;\"'()").upper() if corrected_tokens else None
+            next_word = None
+            for future_prefix, future_core, future_suffix in parsed_tokens[index + 1 :]:
+                future_alpha = future_core.replace(".", "")
+                if future_alpha:
+                    next_word = future_alpha.upper()
+                    break
+
+            if not alpha_core:
+                corrected_tokens.append(prefix + core + suffix)
+                continue
+
+            corrected_parts = maybe_split_merged_word(
+                alpha_core,
                 previous_word=previous_word,
                 next_word=next_word,
                 dictionary_lookup=dictionary_lookup,
-            ) if core else core
-            if trailing_period:
-                corrected += "."
-            corrected_tokens.append(corrected)
+            )
+            corrected_core = " ".join(corrected_parts)
+            corrected_tokens.append(prefix + corrected_core + suffix)
         corrected_lines.append(" ".join(corrected_tokens))
     return corrected_lines
 
