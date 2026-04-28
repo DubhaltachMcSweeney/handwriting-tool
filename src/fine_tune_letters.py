@@ -20,11 +20,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "data"
 GENERAL_LABELS_PATH = PROJECT_ROOT / "corrected_samples" / "labels.csv"
 RAW_LETTER_DIR = PROJECT_ROOT / "samples" / "raw" / "letters"
+FONT_LETTERS_DIR = PROJECT_ROOT / "samples" / "font_letters"
 
 REHEARSAL_SAMPLES = 3000
 CORRECTION_REPEATS = 96
 SEGMENT_REPEATS = 48
 RAW_LETTER_REPEATS = 32
+FONT_LETTER_REPEATS = 24
 
 
 def _letter_label(text):
@@ -104,6 +106,30 @@ def load_raw_letter_samples(raw_letter_dir=RAW_LETTER_DIR):
     return samples
 
 
+def load_font_letter_samples(font_letters_dir=FONT_LETTERS_DIR):
+    font_letters_dir = Path(font_letters_dir)
+    if not font_letters_dir.exists():
+        return []
+
+    samples = []
+    for case_folder in ("uppercase", "lowercase"):
+        case_dir = font_letters_dir / case_folder
+        if not case_dir.exists():
+            continue
+
+        for char_dir in sorted(path for path in case_dir.iterdir() if path.is_dir()):
+            character = char_dir.name
+            label = _letter_label(character)
+            if label is None:
+                continue
+
+            for image_path in sorted(char_dir.glob("letter_*.png")):
+                if image_path.is_file():
+                    samples.append({"image_path": image_path, "label": label})
+
+    return samples
+
+
 class CorrectedLetterDataset(Dataset):
     def __init__(self, samples, repeats=1, transform=None):
         self.samples = list(samples)
@@ -158,11 +184,13 @@ def fine_tune():
     single_samples = load_single_letter_corrections()
     segment_samples = load_segment_letter_corrections()
     raw_letter_samples = load_raw_letter_samples()
+    font_letter_samples = load_font_letter_samples()
 
-    if not single_samples and not segment_samples and not raw_letter_samples:
+    if not single_samples and not segment_samples and not raw_letter_samples and not font_letter_samples:
         print(
             "No usable letter correction samples found in corrected_samples/labels.csv, "
-            "corrected_samples/letter_segments/labels.csv, or samples/raw/letters."
+            "corrected_samples/letter_segments/labels.csv, samples/raw/letters, "
+            "or samples/font_letters."
         )
         return
 
@@ -206,6 +234,15 @@ def fine_tune():
             )
         )
 
+    if font_letter_samples:
+        fine_tune_datasets.append(
+            CorrectedLetterDataset(
+                font_letter_samples,
+                repeats=FONT_LETTER_REPEATS,
+                transform=correction_transform,
+            )
+        )
+
     train_dataset = ConcatDataset(fine_tune_datasets)
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 
@@ -235,6 +272,7 @@ def fine_tune():
     print(f"Used {len(single_samples)} single-letter correction sample(s)")
     print(f"Used {len(segment_samples)} aligned sentence segment sample(s)")
     print(f"Used {len(raw_letter_samples)} labeled raw letter sample(s)")
+    print(f"Used {len(font_letter_samples)} font library letter sample(s)")
 
 
 if __name__ == "__main__":

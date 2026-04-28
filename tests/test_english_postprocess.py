@@ -5,7 +5,12 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from english_postprocess import correct_english_word, postprocess_text_lines, restore_sentence_case
+from english_postprocess import (
+    correct_english_word,
+    maybe_split_merged_word,
+    postprocess_text_lines,
+    restore_sentence_case,
+)
 
 
 def test_correct_english_word_fixes_close_match_with_custom_dictionary(monkeypatch):
@@ -64,3 +69,38 @@ def test_restore_sentence_case_makes_text_read_like_a_sentence():
         "Alice was beginning to get very tired of sitting by her\n"
         "sister on the bank. I was here!"
     )
+
+
+def test_maybe_split_merged_word_breaks_common_phrase_token(monkeypatch):
+    dictionary_lookup = {
+        2: ["OF"],
+        6: ["MAKING"],
+        8: ["OFMAKING"],
+    }
+
+    split = maybe_split_merged_word("OFMAKING", dictionary_lookup=dictionary_lookup)
+
+    assert split == ["OF", "MAKING"]
+
+
+def test_postprocess_text_lines_splits_and_repairs_merged_words(monkeypatch):
+    dictionary_lookup = {
+        1: ["A"],
+        2: ["OF", "UP"],
+        3: ["THE"],
+        5: ["DAISY", "WORTH"],
+        6: ["CHAIN", "MAKING"],
+        7: ["WHETHER"],
+        8: ["PLEASURE", "GETTING", "DAISIES"],
+        9: ["PICKING", "TROUBLE"],
+    }
+
+    import english_postprocess
+
+    monkeypatch.setattr(english_postprocess, "dictionary_by_length", lambda: dictionary_lookup)
+
+    corrected = postprocess_text_lines(
+        ["WHETHR THEPLAASURE OFMAKING A DAISY CHAIN WNRTH THE TROUBLE OF GETTING UP"]
+    )
+
+    assert corrected == ["WHETHER THE PLEASURE OF MAKING A DAISY CHAIN WORTH THE TROUBLE OF GETTING UP"]

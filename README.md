@@ -4,20 +4,68 @@ aka Handwriting Digitisation and Personalized Font Generation Tool
 
 ## Project Guide
 
-This repository currently implements a prototype for handwritten digit recognition. It can train a simple MNIST model, preprocess single digit images, segment multi-digit images, run predictions from the command line, and store user corrections for later retraining.
+This repository currently implements a handwriting digitisation and personalised handwriting prototype rather than only a digit demo.
 
-At this stage, the model is trained on MNIST and is intended for digits only (`0-9`). It does not reliably recognise letters yet. Letter recognition would require a separate dataset such as EMNIST or an OCR tool.
+It now supports:
+
+- handwritten digit recognition
+- handwritten letter recognition
+- simple sentence-level handwritten English recognition
+- user correction and feedback-driven fine-tuning
+- personalised handwriting-style rendering from stored character libraries
+
+The current system combines:
+
+- a digit model trained on MNIST and adapted with user handwriting samples
+- a letter model trained on EMNIST Letters and adapted with user sentence and character samples
+- OpenCV-based preprocessing and segmentation
+- English dictionary post-processing for recognised sentence text
+- reusable handwriting character libraries for digits and letters
+
+This is still a constrained prototype, not a production OCR system. Digit recognition is currently the most reliable part. Letter and sentence recognition work as a prototype, but still depend heavily on image quality, spacing, and writing style.
+
+### Current Status
+
+The project currently supports four connected workflows:
+
+1. **Digit recognition**
+   - single-digit prediction
+   - multi-digit prediction
+   - decimal-aware segmentation
+
+2. **Letter and sentence recognition**
+   - single handwritten letter recognition
+   - handwritten sentence recognition prototype
+   - English post-processing and sentence-case restoration
+
+3. **Interactive improvement**
+   - saving corrections
+   - aligning corrected sentence text to segmented character images
+   - fine-tuning models on user-specific handwriting
+
+4. **Personalised handwriting rendering**
+   - rendering typed text from `font_digits` and `font_letters`
+   - rendering recognised text back into a handwriting-style image
 
 ### Main Files
 
-- `src/train_mnist.py`: trains a simple neural network on the MNIST digit dataset and saves the model to `models/mnist_model.pth`.
-- `src/predict_image.py`: command-line prediction tool for single digit images and multi-digit images. It can also save corrected labels.
-- `src/preprocessing.py`: image preprocessing utilities. It handles grayscale conversion, transparent image backgrounds, binarisation, content cropping, resizing, centering, and tensor conversion.
-- `src/segmentation.py`: OpenCV-based segmentation for multi-digit images. It finds digit-like contours, groups them by line, preserves decimal points when appropriate, and outputs `28x28` segments.
-- `src/corrections.py`: saves user correction records to `corrected_samples/labels.csv` and copies corrected images into `corrected_samples/images/`.
-- `src/image_loader.py`: simple OpenCV image loading demo used for early image input testing.
-- `tests/`: unit tests for preprocessing, segmentation, and correction saving.
-- `samples/`: example handwritten images and sample naming instructions.
+- `src/train_mnist.py`: trains the digit model and saves it to `models/mnist_model.pth`.
+- `src/train_emnist_letters.py`: trains the letter model and saves it to `models/emnist_letters_model.pth`.
+- `src/fine_tune_corrections.py`: fine-tunes the digit model using saved correction samples and labelled multi-digit samples.
+- `src/fine_tune_letters.py`: fine-tunes the letter model using aligned sentence corrections, raw letter samples, and the personal font-letter library.
+- `src/predict_image.py`: the main command-line prediction tool for digits, letters, multi-digit images, and sentence images. It also supports correction recording and rendering recognised text back into handwriting.
+- `src/preprocessing.py`: shared image preprocessing utilities for grayscale conversion, binarisation, cropping, resizing, centering, and tensor conversion.
+- `src/segmentation.py`: OpenCV-based segmentation for multi-digit images with decimal-point handling.
+- `src/text_segmentation.py`: sentence/text segmentation for letter and sentence images, including line grouping and punctuation handling.
+- `src/english_postprocess.py`: dictionary-based English word and sentence repair for recognised letter text.
+- `src/corrections.py`: stores general correction records in `corrected_samples/labels.csv`.
+- `src/letter_corrections.py`: stores aligned sentence-to-character correction records for letter fine-tuning.
+- `src/render_handwriting.py`: renders typed or recognised text back into a handwriting-style image using the character libraries.
+- `src/model.py`: shared CNN model definitions for digit and letter recognition.
+- `src/recognition_config.py`: label-set and model-path configuration helpers.
+- `src/image_loader.py`: early image loading demo kept for simple manual inspection.
+- `tests/`: unit tests for preprocessing, segmentation, corrections, post-processing, fine-tuning sample loading, and rendering.
+- `samples/`: handwritten input samples, processed debug outputs, font libraries, and naming instructions.
 - `proposal/project_proposal.md`: project proposal and planning document.
 
 ### Setup
@@ -40,10 +88,10 @@ In VS Code, select the interpreter:
 
 ```text
 Python: Select Interpreter
-/Users/yuxinyu/handwriting-tool/venv/bin/python
+/Your path/handwriting-tool/venv/bin/python
 ```
 
-### Train the Model
+### Train the Models
 
 Run:
 
@@ -51,10 +99,22 @@ Run:
 python src/train_mnist.py
 ```
 
-This downloads MNIST into `data/`, trains the model, evaluates it on the MNIST test set, and saves:
+This downloads MNIST into `data/`, trains the digit model, evaluates it on the MNIST test set, and saves:
 
 ```text
 models/mnist_model.pth
+```
+
+For letters, run:
+
+```bash
+python src/train_emnist_letters.py
+```
+
+This trains the letter model on EMNIST Letters and saves:
+
+```text
+models/emnist_letters_model.pth
 ```
 
 ### Predict a Single Digit
@@ -71,6 +131,20 @@ Example output:
 Predicted digit: 3
 ```
 
+### Predict a Single Letter
+
+Run:
+
+```bash
+python src/predict_image.py samples/raw/letters/letter_a_001_raw.png --label-set letters
+```
+
+Example output:
+
+```text
+Predicted letter: A
+```
+
 ### Predict Multiple Digits
 
 For an image containing multiple digits, run:
@@ -85,6 +159,28 @@ To save the segmented `28x28` images for debugging:
 
 ```bash
 python src/predict_image.py --multi samples/raw/multi_digit/multi_digit_unknown_001_raw.png --save-segments samples/processed/digits/debug_unknown_001
+```
+
+### Predict a Handwritten Sentence
+
+For a handwritten sentence image, run:
+
+```bash
+python src/predict_image.py samples/raw/letters/sentence_alice_was_beginning_001_raw.jpeg --label-set letters --multi
+```
+
+This will:
+
+- segment the sentence into character candidates
+- classify them with the letter model
+- post-process the result with English dictionary repair and sentence-case restoration
+
+### Save Debug Segments for Sentence Recognition
+
+To save segmented character images for debugging:
+
+```bash
+python src/predict_image.py samples/raw/letters/sentence_alice_was_beginning_001_raw.jpeg --label-set letters --multi --save-segments samples/processed/letters/debug_sentence_alice
 ```
 
 ### Save a User Correction
@@ -108,6 +204,49 @@ corrected_samples/labels.csv
 corrected_samples/images/
 ```
 
+For sentence-level letter correction, the system also saves aligned character correction samples in:
+
+```text
+corrected_samples/letter_segments/labels.csv
+corrected_samples/letter_segments/images/
+```
+
+### Fine-Tune the Models
+
+To fine-tune the digit model with saved corrections:
+
+```bash
+python src/fine_tune_corrections.py
+```
+
+To fine-tune the letter model with sentence corrections, raw letter samples, and personal font-letter samples:
+
+```bash
+python src/fine_tune_letters.py
+```
+
+### Render Personalised Handwriting
+
+To render a text string using the digit/letter character libraries:
+
+```bash
+python src/render_handwriting.py "Alice was beginning" --output output/rendered_alice.png
+```
+
+This uses:
+
+- `samples/font_digits/`
+- `samples/font_letters/uppercase/`
+- `samples/font_letters/lowercase/`
+
+### Recognise and Immediately Re-Render
+
+To recognise a handwritten sentence and immediately convert the recognised text back into your stored handwriting style:
+
+```bash
+python src/predict_image.py samples/raw/letters/sentence_alice_was_beginning_001_raw.jpeg --label-set letters --multi --render-recognized --render-output output/rendered_from_recognition.png
+```
+
 ### Run Tests
 
 Run:
@@ -116,7 +255,16 @@ Run:
 python -m pytest
 ```
 
-The tests cover missing image files, invalid image files, different image sizes, white-background and black-background images, single digit preprocessing, multi-digit segmentation, decimal point handling, and correction saving.
+The tests cover:
+
+- missing and invalid image files
+- different image sizes and image polarity
+- digit preprocessing
+- multi-digit segmentation and decimal handling
+- correction saving
+- sentence-segment correction loading
+- text post-processing
+- rendering helper behavior
 
 ### Sample Naming
 
@@ -127,6 +275,7 @@ samples/raw/digits/digit_<label>_<number>_raw.png
 samples/raw/digits/digit_unknown_<number>_raw.png
 samples/raw/multi_digit/multi_digit_<text>_<number>_raw.png
 samples/raw/letters/letter_<label>_<number>_raw.png
+samples/raw/letters/sentence_<description>_<number>_raw.jpeg
 ```
 
 Examples:
@@ -136,9 +285,17 @@ samples/raw/digits/digit_5_001_raw.png
 samples/raw/digits/digit_unknown_001_raw.png
 samples/raw/multi_digit/multi_digit_123_001_raw.png
 samples/raw/letters/letter_a_001_raw.png
+samples/raw/letters/sentence_alice_was_beginning_001_raw.jpeg
 ```
 
 Use `unknown` when the true label has not been confirmed. Do not name files only by the model prediction unless the image has been checked manually.
+
+### Current Limitations
+
+- Sentence recognition is still a prototype and can struggle with connected lowercase writing.
+- The letter model is more reliable on constrained samples than on long natural sentences.
+- English post-processing improves readability, but it does not replace strong sequence modelling.
+- The renderer is a character-library prototype, not a full font engine.
 
 ## 1. Mission
 
