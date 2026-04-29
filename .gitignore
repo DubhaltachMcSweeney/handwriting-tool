@@ -1,3 +1,5 @@
+.vscode/
+
 #Virtual python environment
 venv/
 .venv/

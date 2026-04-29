@@ -5,3 +5,5 @@ Pillow
 pytest
 torch
 torchvision
+fonttools
+potracer # imports as 'potrace'

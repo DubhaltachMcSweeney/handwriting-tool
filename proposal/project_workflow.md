@@ -88,6 +88,11 @@ Use this order:
 - [src/render_handwriting.py](/Users/yuxinyu/handwriting-tool/src/render_handwriting.py)  
   Renders typed or recognised text using the personal digit and letter libraries.
 
+### Font generation
+
+- [src/font_generator.py](/Users/yuxinyu/handwriting-tool/src/font_generation.py)  
+  Vectorises the personal character library and assembles it into an installable TrueType (`.ttf`) font.
+
 ## 4. Core workflows
 
 Each command block below now includes:
@@ -394,6 +399,28 @@ Rendered predicted text to output/demo_rendered_from_recognition.png
 - `output/demo_direct_render.png`
 - `output/demo_rendered_from_recognition.png`
 
+### J. TrueType font generation
+
+**Purpose**
+
+Vectorise the personalised character library (`samples/font_letters/` and `samples/font_digits/`) and export it as an installable `.ttf` font that can be used in any application.
+
+```bash
+venv/bin/python src/font_generator.py --output output/MyHandwriting.ttf --family-name "MyHandwriting"
+```
+
+**Typical output**
+
+```text
+Saved /Users/yuxinyu/handwriting-tool/output/MyHandwriting.ttf
+```
+
+**Files produced**
+
+- `output/MyHandwriting.ttf`
+
+To install, double-click the `.ttf` file in Finder and click "Install Font". The font will then be available in any application that supports custom fonts (Word, Pages, browsers, design tools, etc.).
+
 ## 5. OCR baseline comparison
 
 **Purpose**
@@ -444,6 +471,7 @@ See the qualitative comparison summary in:
 - [output/rendered_from_recognition_alice.png](/Users/yuxinyu/handwriting-tool/output/rendered_from_recognition_alice.png)
 - [output/rendered_Hello-World.png](/Users/yuxinyu/handwriting-tool/output/rendered_Hello-World.png)
 - [output/rendered_314159.png](/Users/yuxinyu/handwriting-tool/output/rendered_314159.png)
+- [output/MyHandwriting.ttf](/Users/yuxinyu/handwriting-tool/output/MyHandwriting.ttf) (installable font — open in Font Book to preview, then install and type with it in any application)
 
 ### Best terminal demonstrations
 
@@ -452,6 +480,7 @@ See the qualitative comparison summary in:
 - Alice sentence recognition
 - correction and fine-tuning loop
 - recognise-then-render workflow
+- TTF font generation and installation
 
 ## 7. Best live-demo order
 
@@ -462,6 +491,7 @@ Recommended sentence demo:
 3. fine-tune the letter model
 4. recognise again
 5. render recognised text back into handwriting
+6. generate a `.ttf` from the user's character library and install it
 
 See:
 
