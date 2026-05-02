@@ -129,6 +129,15 @@ What to say:
 - digit recognition is currently the strongest part of the system
 - this helps show that the project works well in a constrained setting
 
+## Step 8. Generate TTF
+
+Command:
+
+```bash
+python src/font_generator.py --output output/MyHandwriting.ttf --family-name "MyHandwriting"
+```
+
+
 ## Recommended Final Message
 
 Close the demo with:

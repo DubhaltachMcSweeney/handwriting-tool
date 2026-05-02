@@ -13,9 +13,6 @@ It now supports:
 - simple sentence-level handwritten English recognition
 - user correction and feedback-driven fine-tuning
 - personalised handwriting-style rendering from stored character libraries
-
-A planned extension will add:
-
 - export of the personalised character library as an installable TrueType (.ttf) font, usable in any standard application (Word, browsers, design tools, etc.)
 
 The current system combines:
@@ -51,12 +48,16 @@ The project currently supports four connected workflows:
    - rendering typed text from `font_digits` and `font_letters`
    - rendering recognised text back into a handwriting-style image
 
+5. **TTF Font generation**
+   - exports the personalised character library as an installable .ttf font
+
 ### Main Files
 
 - `src/train_mnist.py`: trains the digit model and saves it to `models/mnist_model.pth`.
 - `src/train_emnist_letters.py`: trains the letter model and saves it to `models/emnist_letters_model.pth`.
 - `src/fine_tune_corrections.py`: fine-tunes the digit model using saved correction samples and labelled multi-digit samples.
 - `src/fine_tune_letters.py`: fine-tunes the letter model using aligned sentence corrections, raw letter samples, and the personal font-letter library.
+- `src/font_generation.py`: generates an installable TrueType font from the personal character library.
 - `src/predict_image.py`: the main command-line prediction tool for digits, letters, multi-digit images, and sentence images. It also supports correction recording and rendering recognised text back into handwriting.
 - `src/preprocessing.py`: shared image preprocessing utilities for grayscale conversion, binarisation, cropping, resizing, centering, and tensor conversion.
 - `src/segmentation.py`: OpenCV-based segmentation for multi-digit images with decimal-point handling.
@@ -248,6 +249,12 @@ To recognise a handwritten sentence and immediately convert the recognised text 
 
 ```bash
 python src/predict_image.py samples/raw/letters/sentence_alice_was_beginning_001_raw.jpeg --label-set letters --multi --render-recognized --render-output output/rendered_from_recognition.png
+```
+
+### Generate a TTF font
+
+```bash
+python src/font_generator.py --output output/MyHandwriting.ttf --family-name "MyHandwriting"
 ```
 
 ### Run Tests

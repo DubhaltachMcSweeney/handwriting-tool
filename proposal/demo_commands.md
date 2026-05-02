@@ -56,3 +56,9 @@ venv/bin/python src/predict_image.py --multi samples/raw/multi_digit/multi_digit
 ```bash
 venv/bin/python src/render_handwriting.py "Alice was beginning to get very tired of sitting by her sister on the bank." --output output/demo_direct_render.png
 ```
+
+## 8. TTF generation
+
+```bash
+venv/bin/python src/font_generator.py --output output/MyHandwriting.ttf --family-name "MyHandwriting"
+```
