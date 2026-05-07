@@ -14,7 +14,7 @@ OUTPUT_TTF = PROJECT_ROOT / "output" / "MyHandwriting.ttf"
 UNITS_PER_EM = 1000
 ASCENT = 900
 DESCENT = -200
-ADVANCE_MARGIN = 50      # extra space added to each side of glyph for spacing
+ADVANCE_MARGIN = 120      # extra space added to each side of glyph for spacing
 
 CAP_HEIGHT = 700  # target height for uppercase letters in font units
 
@@ -109,25 +109,30 @@ def detect_baseline_for_glyph(binary_array, character):
     return body_end
 
 def trace_to_glyph(binary_array, scale, baseline_y_in_png):
-    """Trace a binary array with Potrace and convert to a fontTools glyph.
-    
-    Coordinate transforms:
-    - Y-axis flip (image Y down -> font Y up)
-    - Translate so baseline_y_in_png maps to font Y=0
-    - Scale by the provided factor
-    """
     bitmap = potrace.Bitmap(binary_array)
     path = bitmap.trace(
-        turdsize=2,        # smaller = preserves smaller features
-        alphamax=1.0,      # smaller = more corners (less smoothing)
-        opttolerance=0.1,  # smaller = closer to original
+        turdsize=2,
+        alphamax=1.0,
+        opttolerance=0.1,
     )
 
     pen = TTGlyphPen(None)
     image_height, image_width = binary_array.shape
 
+    # Compute ink bounds first so we can both shift the glyph to start at x=0
+    # and use ink width for advance width
+    ink_mask = ~binary_array
+    if ink_mask.any():
+        cols = np.any(ink_mask, axis=0)
+        ink_left = int(np.where(cols)[0][0])
+        ink_right = int(np.where(cols)[0][-1])
+        ink_width = ink_right - ink_left + 1
+    else:
+        ink_left = 0
+        ink_width = image_width
+
     def transform(x, y):
-        return x * scale, (baseline_y_in_png - y) * scale
+        return (x - ink_left) * scale, (baseline_y_in_png - y) * scale
 
     for curve in path:
         start = curve.start_point
@@ -148,7 +153,7 @@ def trace_to_glyph(binary_array, scale, baseline_y_in_png):
                 )
         pen.closePath()
 
-    return pen.glyph(), int(image_width * scale)
+    return pen.glyph(), int(ink_width * scale)
 
 def compute_font_scale(reference_character="H"):
     """Compute a single scale factor for the whole font based on the actual ink
