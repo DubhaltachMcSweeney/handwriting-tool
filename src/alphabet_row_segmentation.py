@@ -337,10 +337,18 @@ def segment_alphabet_rows(image_path, expected_text=None):
                 f"but found {len(merged_boxes)}. The row image may need cleaner spacing."
             )
 
+        # Compute the row's vertical extent once. All letters in this row will be
+        # cropped to this same vertical span, preserving each letter's position
+        # relative to the row's baseline. This means the per-letter PNGs retain
+        # information about ascenders, descenders, and x-height, which the font
+        # generator can then use to align glyphs correctly.
+        row_top = min(box.y for box in merged_boxes)
+        row_bottom = max(box.bottom for box in merged_boxes)
+
         line_segments = []
         for column_index, (box, character) in enumerate(zip(merged_boxes, expected_row)):
-            x, y, width, height = box.bbox
-            raw_crop = gray_image[y : y + height, x : x + width]
+            x, _, width, _ = box.bbox
+            raw_crop = gray_image[row_top:row_bottom, x : x + width]
             content_crop = _crop_to_content(_binarize_for_alphabet_row(raw_crop))
             if content_crop.size == 0:
                 processed = preprocess_digit_array_from_gray(raw_crop)
