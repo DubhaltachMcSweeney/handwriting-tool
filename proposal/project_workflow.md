@@ -90,7 +90,7 @@ Use this order:
 
 ### Font generation
 
-- [src/font_generator.py](/Users/yuxinyu/handwriting-tool/src/font_generation.py)  
+- [src/font_generation.py](/Users/yuxinyu/handwriting-tool/src/font_generation.py)  
   Vectorises the personal character library and assembles it into an installable TrueType (`.ttf`) font.
 
 ## 4. Core workflows
@@ -252,6 +252,43 @@ venv/bin/python src/predict_image.py samples/raw/letters/sentence_alice_was_begi
 samples/processed/letters/debug_sentence_alice/
 ```
 
+### F2. Known alphabet-row recognition
+
+**Purpose**
+
+Recognise a known-content alphabet row image with simpler row-by-row segmentation instead of sentence dictionary repair.
+
+```bash
+venv/bin/python src/predict_image.py samples/raw/letters/alphabet_row_upper_lower_digits_001_raw.jpeg --multi --text-mode alphabet-row
+```
+
+**Typical output**
+
+```text
+Predicted rows:
+ABCDEFGHIJKLMNOPQRSTUVWXYZ
+abcdefghijklmnopqrstuvwxyz
+1234567890
+```
+
+Optional debug segment export:
+
+```bash
+venv/bin/python src/predict_image.py samples/raw/letters/alphabet_row_upper_lower_digits_001_raw.jpeg --multi --text-mode alphabet-row --save-segments samples/processed/letters/debug_alphabet_row_001
+```
+
+Optional export into the font library as primary glyph samples:
+
+```bash
+venv/bin/python src/predict_image.py samples/raw/letters/alphabet_row_upper_lower_digits_001_raw.jpeg --multi --text-mode alphabet-row --populate-font-library
+```
+
+**Files produced**
+
+- `samples/processed/letters/debug_alphabet_row_001/`
+- `samples/font_letters/.../letter_*_000_primary.png`
+- `samples/font_digits/.../digit_*_000_primary.png`
+
 ### G. Save a correction
 
 **Purpose**
@@ -406,7 +443,7 @@ Rendered predicted text to output/demo_rendered_from_recognition.png
 Vectorise the personalised character library (`samples/font_letters/` and `samples/font_digits/`) and export it as an installable `.ttf` font that can be used in any application.
 
 ```bash
-venv/bin/python src/font_generator.py --output output/MyHandwriting.ttf --family-name "MyHandwriting"
+venv/bin/python src/font_generation.py --output output/MyHandwriting.ttf --family-name "MyHandwriting"
 ```
 
 **Typical output**
@@ -417,6 +454,47 @@ Saved /Users/yuxinyu/handwriting-tool/output/MyHandwriting.ttf
 
 **Files produced**
 
+- `output/MyHandwriting.ttf`
+
+If `*_000_primary.png` samples exist in the font library, the font generator will prefer them automatically.
+
+### J2. One-command alphabet-row to TTF
+
+**Purpose**
+
+Run the full known alphabet-row workflow in one command:
+
+1. preview recognition on the alphabet row
+2. export segmented glyphs into the font library as `*_000_primary.png`
+3. build the final `.ttf`
+
+```bash
+venv/bin/python src/build_ttf_from_alphabet_row.py samples/raw/letters/alphabet_row_upper_lower_digits_001_raw.jpeg --output output/MyHandwriting.ttf --family-name "MyHandwriting"
+```
+
+**Typical output**
+
+```text
+Preview prediction:
+ABCDEFGHIJKLMNOPQRSTUVWXYZ
+abcdefghijklmnopqrstuvwxyz
+1234567890
+Preview summary: 62 segment(s), 0 mismatch(es), ...
+Exported 62 primary font sample(s) into the font library
+Saved output/MyHandwriting.ttf
+```
+
+Optional debug segment export:
+
+```bash
+venv/bin/python src/build_ttf_from_alphabet_row.py samples/raw/letters/alphabet_row_upper_lower_digits_001_raw.jpeg --output output/MyHandwriting.ttf --family-name "MyHandwriting" --save-segments samples/processed/letters/debug_alphabet_row_001
+```
+
+**Files produced**
+
+- `samples/font_letters/.../letter_*_000_primary.png`
+- `samples/font_digits/.../digit_*_000_primary.png`
+- `samples/processed/letters/debug_alphabet_row_001/` (optional)
 - `output/MyHandwriting.ttf`
 
 To install, double-click the `.ttf` file in Finder and click "Install Font". The font will then be available in any application that supports custom fonts (Word, Pages, browsers, design tools, etc.).

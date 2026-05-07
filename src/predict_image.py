@@ -3,6 +3,12 @@ from pathlib import Path
 
 import torch
 
+from alphabet_row_segmentation import (
+    format_alphabet_row_prediction,
+    populate_font_library_from_alphabet_row,
+    save_alphabet_row_segments,
+    segment_alphabet_rows,
+)
 from corrections import save_correction
 from english_postprocess import postprocess_text_lines, restore_sentence_case
 from letter_corrections import save_letter_text_corrections
@@ -138,6 +144,36 @@ def predict_multiple_letters(model, image_path):
     return format_text_prediction(predicted_lines), flat_predictions
 
 
+def predict_alphabet_rows(letter_model, digit_model, image_path, expected_text=None):
+    predicted_rows = []
+    flat_predictions = []
+
+    for row_segments in segment_alphabet_rows(image_path, expected_text=expected_text):
+        row_predictions = []
+        for segment in row_segments:
+            model = digit_model if (segment.character and segment.character.isdigit()) else letter_model
+            label_set = DIGIT_LABEL_SET if (segment.character and segment.character.isdigit()) else LETTER_LABEL_SET
+            tensor = digit_array_to_tensor(segment.image_array)
+            predicted_index, confidence = predict_tensor(model, tensor)
+            predicted_text = label_from_prediction(predicted_index, label_set)
+            if segment.character and segment.character.islower() and predicted_text.isalpha():
+                predicted_text = predicted_text.lower()
+            prediction = {
+                "index": segment.index + 1,
+                "kind": "character",
+                "text": predicted_text,
+                "confidence": confidence,
+                "bbox": segment.bbox,
+                "expected": segment.character,
+                "line_index": segment.line_index,
+            }
+            row_predictions.append(prediction)
+            flat_predictions.append(prediction)
+        predicted_rows.append(row_predictions)
+
+    return format_alphabet_row_prediction(predicted_rows), flat_predictions
+
+
 def ask_for_correction(prediction):
     corrected = input(f"Correct label/text [{prediction}]: ").strip()
     return corrected or prediction
@@ -269,6 +305,16 @@ def parse_args():
         help="Segment and predict multiple characters from one image.",
     )
     parser.add_argument(
+        "--text-mode",
+        choices=["sentence", "alphabet-row"],
+        default="sentence",
+        help="For multi-letter images, choose sentence OCR or a simpler known-content alphabet-row mode.",
+    )
+    parser.add_argument(
+        "--expected-text",
+        help="Known row content for alphabet-row mode. Use newlines between rows if needed.",
+    )
+    parser.add_argument(
         "--correct",
         action="store_true",
         help="Prompt for the true label and save it to corrected_samples/labels.csv.",
@@ -294,24 +340,42 @@ def parse_args():
         default=1,
         help="Optional random seed for deterministic handwriting rendering.",
     )
+    parser.add_argument(
+        "--populate-font-library",
+        action="store_true",
+        help="For alphabet-row images, export segmented glyphs into samples/font_letters and samples/font_digits as primary font samples.",
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
     image_path = Path(args.image_path)
-    model = load_model(args.label_set)
 
     if args.multi:
-        if args.label_set == DIGIT_LABEL_SET:
+        if args.text_mode == "alphabet-row":
+            letter_model = load_model(LETTER_LABEL_SET)
+            digit_model = load_model(DIGIT_LABEL_SET)
+            prediction, segment_predictions = predict_alphabet_rows(
+                letter_model,
+                digit_model,
+                image_path,
+                expected_text=args.expected_text,
+            )
+        elif args.label_set == DIGIT_LABEL_SET:
+            model = load_model(args.label_set)
             prediction, segment_predictions = predict_multiple_digits(model, image_path)
         else:
+            model = load_model(args.label_set)
             prediction, segment_predictions = predict_multiple_letters(model, image_path)
             prediction = postprocess_letter_prediction(prediction)
         if not prediction:
             print("No character segments found.")
             return
-        heading = "Predicted digits:" if args.label_set == DIGIT_LABEL_SET else "Predicted text:"
+        if args.text_mode == "alphabet-row":
+            heading = "Predicted rows:"
+        else:
+            heading = "Predicted digits:" if args.label_set == DIGIT_LABEL_SET else "Predicted text:"
         print(heading)
         print(prediction)
         for segment_prediction in segment_predictions:
@@ -320,12 +384,16 @@ def main():
             else:
                 confidence_pct = segment_prediction["confidence"] * 100
                 confidence_label = format_confidence_label(segment_prediction["confidence"])
+                expected_suffix = ""
+                if args.text_mode == "alphabet-row" and segment_prediction.get("expected"):
+                    expected_suffix = f" | expected {segment_prediction['expected']}"
                 print(
                     f"Segment {segment_prediction['index']}: "
-                    f"{segment_prediction['text']} ({confidence_pct:.2f}%){confidence_label}"
+                    f"{segment_prediction['text']} ({confidence_pct:.2f}%){confidence_label}{expected_suffix}"
                 )
         mode = "multi"
     else:
+        model = load_model(args.label_set)
         prediction, confidence = predict_single_character(model, image_path, args.label_set)
         confidence_label = format_confidence_label(confidence)
         item_name = "digit" if args.label_set == DIGIT_LABEL_SET else "letter"
@@ -333,7 +401,13 @@ def main():
         mode = "single"
 
     if args.save_segments:
-        if args.label_set == DIGIT_LABEL_SET:
+        if args.multi and args.text_mode == "alphabet-row":
+            saved_paths = save_alphabet_row_segments(
+                image_path,
+                args.save_segments,
+                expected_text=args.expected_text,
+            )
+        elif args.label_set == DIGIT_LABEL_SET:
             saved_paths = save_segments(image_path, args.save_segments)
         else:
             saved_paths = save_text_segments(image_path, args.save_segments)
@@ -354,6 +428,13 @@ def main():
                 f"from {segment_count} segment(s) and {corrected_count} corrected character(s)"
             )
         prediction = corrected_label
+
+    if args.populate_font_library:
+        saved_paths = populate_font_library_from_alphabet_row(
+            image_path,
+            expected_text=prediction if args.correct else args.expected_text,
+        )
+        print(f"Saved {len(saved_paths)} primary font sample(s) into the font library")
 
     if args.render_recognized:
         rendered_output_path = render_prediction_text(

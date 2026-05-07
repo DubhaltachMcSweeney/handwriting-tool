@@ -179,6 +179,27 @@ This will:
 - classify them with the letter model
 - post-process the result with English dictionary repair and sentence-case restoration
 
+### Predict a Known Alphabet Row
+
+For a known-content row image containing separated uppercase letters, lowercase letters, and digits, run:
+
+```bash
+python src/predict_image.py samples/raw/letters/alphabet_row_upper_lower_digits_001_raw.jpeg --multi --text-mode alphabet-row
+```
+
+This simpler mode:
+
+- segments the image row by row
+- sorts characters from left to right
+- skips English dictionary repair
+- uses the known row template `A-Z`, `a-z`, and `1-0`
+
+To also export those segmented glyphs into the font library as primary samples for TTF generation:
+
+```bash
+python src/predict_image.py samples/raw/letters/alphabet_row_upper_lower_digits_001_raw.jpeg --multi --text-mode alphabet-row --populate-font-library
+```
+
 ### Save Debug Segments for Sentence Recognition
 
 To save segmented character images for debugging:
@@ -254,7 +275,23 @@ python src/predict_image.py samples/raw/letters/sentence_alice_was_beginning_001
 ### Generate a TTF font
 
 ```bash
-python src/font_generator.py --output output/MyHandwriting.ttf --family-name "MyHandwriting"
+python src/font_generation.py --output output/MyHandwriting.ttf --family-name "MyHandwriting"
+```
+
+If you have already exported an alphabet row with `--populate-font-library`, the font builder will automatically prefer those `*_000_primary.png` samples when assembling the TTF.
+
+### One-Command Alphabet Row to TTF
+
+To preview a known alphabet-row image, export the segmented glyphs into the font library, and immediately build a `.ttf` in one step:
+
+```bash
+python src/build_ttf_from_alphabet_row.py samples/raw/letters/alphabet_row_upper_lower_digits_001_raw.jpeg --output output/MyHandwriting.ttf --family-name "MyHandwriting"
+```
+
+Optional debug segment export:
+
+```bash
+python src/build_ttf_from_alphabet_row.py samples/raw/letters/alphabet_row_upper_lower_digits_001_raw.jpeg --output output/MyHandwriting.ttf --family-name "MyHandwriting" --save-segments samples/processed/letters/debug_alphabet_row_001
 ```
 
 ### Run Tests
