@@ -86,9 +86,15 @@ def find_sample_for(character):
     if character.isalpha():
         case = "uppercase" if character.isupper() else "lowercase"
         directory = SAMPLES_ROOT / "font_letters" / case / character
+        primary = directory / f"letter_{character}_000_primary.png"
+        if primary.exists():
+            return primary
         candidates = sorted(directory.glob(f"letter_{character}_*.png"))
     elif character.isdigit():
         directory = SAMPLES_ROOT / "font_digits" / character
+        primary = directory / f"digit_{character}_000_primary.png"
+        if primary.exists():
+            return primary
         candidates = sorted(directory.glob(f"digit_{character}_*.png"))
     else:
         return None
