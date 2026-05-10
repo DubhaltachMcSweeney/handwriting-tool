@@ -12,10 +12,11 @@ SAMPLES_ROOT = PROJECT_ROOT / "samples"
 OUTPUT_TTF = PROJECT_ROOT / "output" / "MyHandwriting.ttf"
 
 UNITS_PER_EM = 1000
-GLYPH_HEIGHT = 700        # cap-height target in font units
-ASCENT = 800
+ASCENT = 900
 DESCENT = -200
-ADVANCE_MARGIN = 100      # extra space added to each side of glyph for spacing
+ADVANCE_MARGIN = 120      # extra space added to each side of glyph for spacing
+
+CAP_HEIGHT = 700  # target height for uppercase letters in font units
 
 def glyph_name_for(character):
     """Return a TTF-safe glyph name for a character.
@@ -45,42 +46,6 @@ def load_binary_image(png_path):
     array = np.array(image)
     return array >= 128
 
-
-def trace_to_glyph(binary_array):
-    """Trace a binary array with Potrace and convert to a fontTools glyph.
-
-    Coordinate transforms:
-    - Y-axis flip (image Y down -> font Y up)
-    - Scale to GLYPH_HEIGHT in font units
-    """
-    bitmap = potrace.Bitmap(binary_array)
-    path = bitmap.trace()
-
-    pen = TTGlyphPen(None)
-    image_height, image_width = binary_array.shape
-    scale = GLYPH_HEIGHT / image_height
-
-    for curve in path:
-        start = curve.start_point
-        pen.moveTo((start.x * scale, (image_height - start.y) * scale))
-        for segment in curve:
-            if segment.is_corner:
-                c = segment.c
-                end = segment.end_point
-                pen.lineTo((c.x * scale, (image_height - c.y) * scale))
-                pen.lineTo((end.x * scale, (image_height - end.y) * scale))
-            else:
-                c1, c2 = segment.c1, segment.c2
-                end = segment.end_point
-                pen.qCurveTo(
-                    (c1.x * scale, (image_height - c1.y) * scale),
-                    (c2.x * scale, (image_height - c2.y) * scale),
-                    (end.x * scale, (image_height - end.y) * scale),
-                )
-        pen.closePath()
-
-    return pen.glyph(), int(image_width * scale)
-
 def find_sample_for(character):
     """Return path to the first available sample PNG for a character, or None."""
     if character.isalpha():
@@ -101,6 +66,117 @@ def find_sample_for(character):
 
     return candidates[0] if candidates else None
 
+DESCENDER_LETTERS = set("gjpqy")
+
+def detect_baseline_for_glyph(binary_array, character):
+    """Find where the baseline should be for a single glyph, in PNG-Y coordinates.
+    
+    For non-descender characters, baseline = bottom of ink.
+    For descender characters, baseline = where the body ends (roughly the top of the descender).
+    """
+    ink_mask = ~binary_array
+    if not ink_mask.any():
+        return 0
+    
+    rows = np.any(ink_mask, axis=1)
+    ink_top = int(np.where(rows)[0][0])
+    ink_bottom = int(np.where(rows)[0][-1])
+    
+    if character not in DESCENDER_LETTERS:
+        return ink_bottom
+    
+    # j is a special case — there's no clear body-vs-descender density transition,
+    # so use a fixed ratio instead of density-based detection.
+    if character == 'j':
+        # j's body sits roughly at 50% of total ink height
+        return ink_top + int((ink_bottom - ink_top) * 0.5)
+
+    # For other descenders (g, p, q, y), use density-based detection
+    ink_per_row = ink_mask.sum(axis=1)
+    
+    # The body is in the upper portion. Find the row where ink density drops sharply.
+    # Take the median ink-per-row in the upper half as "body density".
+    upper_half_median = np.median(ink_per_row[ink_top:ink_top + (ink_bottom - ink_top) // 2 + 1])
+    threshold = upper_half_median * 0.75  # consider rows with <75% of body density as descender
+    
+    # Walk down from the top, find the first row below the body that's "thin" (descender)
+    body_end = ink_bottom  # fallback
+    for y in range(ink_top + (ink_bottom - ink_top) // 2, ink_bottom):
+        if ink_per_row[y] < threshold:
+            body_end = y
+            break
+    
+    return body_end
+
+def trace_to_glyph(binary_array, scale, baseline_y_in_png):
+    bitmap = potrace.Bitmap(binary_array)
+    path = bitmap.trace(
+        turdsize=2,
+        alphamax=1.0,
+        opttolerance=0.1,
+    )
+
+    pen = TTGlyphPen(None)
+    image_height, image_width = binary_array.shape
+
+    # Compute ink bounds first so we can both shift the glyph to start at x=0
+    # and use ink width for advance width
+    ink_mask = ~binary_array
+    if ink_mask.any():
+        cols = np.any(ink_mask, axis=0)
+        ink_left = int(np.where(cols)[0][0])
+        ink_right = int(np.where(cols)[0][-1])
+        ink_width = ink_right - ink_left + 1
+    else:
+        ink_left = 0
+        ink_width = image_width
+
+    def transform(x, y):
+        return (x - ink_left) * scale, (baseline_y_in_png - y) * scale
+
+    for curve in path:
+        start = curve.start_point
+        pen.moveTo(transform(start.x, start.y))
+        for segment in curve:
+            if segment.is_corner:
+                c = segment.c
+                end = segment.end_point
+                pen.lineTo(transform(c.x, c.y))
+                pen.lineTo(transform(end.x, end.y))
+            else:
+                c1, c2 = segment.c1, segment.c2
+                end = segment.end_point
+                pen.qCurveTo(
+                    transform(c1.x, c1.y),
+                    transform(c2.x, c2.y),
+                    transform(end.x, end.y),
+                )
+        pen.closePath()
+
+    return pen.glyph(), int(ink_width * scale)
+
+def compute_font_scale(reference_character="H"):
+    """Compute a single scale factor for the whole font based on the actual ink
+    height of a reference uppercase glyph (rather than the PNG canvas height,
+    which now includes whitespace above and below for baseline preservation).
+    """
+    sample_path = find_sample_for(reference_character)
+    if sample_path is None:
+        raise FileNotFoundError(
+            f"Cannot compute font scale: reference letter {reference_character!r} not found in samples."
+        )
+    binary = load_binary_image(sample_path)
+    
+    # Find the actual ink bounds (not the PNG canvas)
+    ink_mask = ~binary
+    if not ink_mask.any():
+        raise ValueError(f"Reference glyph {reference_character!r} contains no ink")
+    rows = np.any(ink_mask, axis=1)
+    ink_top, ink_bottom = np.where(rows)[0][[0, -1]]
+    ink_height = ink_bottom - ink_top + 1
+    
+    return CAP_HEIGHT / ink_height
+
 def build_font(output_path=OUTPUT_TTF, family_name="MyHandwriting"):
     """Build the full TTF from all available character samples in SAMPLES_ROOT."""
     characters = (
@@ -108,6 +184,10 @@ def build_font(output_path=OUTPUT_TTF, family_name="MyHandwriting"):
         list("abcdefghijklmnopqrstuvwxyz") +
         list("0123456789")
     )
+
+    # Compute a single scale factor from a reference uppercase glyph.
+    # This preserves relative heights between ascenders, x-height, and descenders.
+    scale = compute_font_scale(reference_character="H")
 
     glyphs = {}
     advance_widths = {}
@@ -132,7 +212,8 @@ def build_font(output_path=OUTPUT_TTF, family_name="MyHandwriting"):
             continue
 
         binary = load_binary_image(sample_path)
-        glyph, width = trace_to_glyph(binary)
+        baseline_y = detect_baseline_for_glyph(binary, character)
+        glyph, width = trace_to_glyph(binary, scale, baseline_y_in_png=baseline_y)
         name = glyph_name_for(character)
 
         glyphs[name] = glyph
