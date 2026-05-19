@@ -25,7 +25,10 @@ def parse_args():
     )
     parser.add_argument(
         "image_path",
-        help="Path to the alphabet-row image containing uppercase, lowercase, and digit rows.",
+        help=(
+            "Path to the alphabet-row image containing uppercase, lowercase, and digit rows, "
+            "optionally followed by a punctuation row like . , ? ! or . , ? ! ' \" : ; - ( )."
+        ),
     )
     parser.add_argument(
         "--output",
@@ -42,7 +45,8 @@ def parse_args():
         "--expected-text",
         help=(
             "Optional known row content. If omitted, the default template is "
-            "A-Z / a-z / 1234567890."
+            "A-Z / a-z / 1234567890, with an automatic fourth row of . , ? ! or "
+            ". , ? ! ' \" : ; - ( ) when present."
         ),
     )
     parser.add_argument(
