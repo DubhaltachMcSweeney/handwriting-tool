@@ -10,6 +10,19 @@ from fontTools.pens.ttGlyphPen import TTGlyphPen
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SAMPLES_ROOT = PROJECT_ROOT / "samples"
 OUTPUT_TTF = PROJECT_ROOT / "output" / "MyHandwriting.ttf"
+PUNCTUATION_GLYPH_NAMES = {
+    ".": "period",
+    ",": "comma",
+    "?": "question",
+    "!": "exclam",
+    "'": "quotesingle",
+    '"': "quotedbl",
+    ":": "colon",
+    ";": "semicolon",
+    "-": "hyphen",
+    "(": "parenleft",
+    ")": "parenright",
+}
 
 UNITS_PER_EM = 1000
 ASCENT = 900
@@ -17,6 +30,8 @@ DESCENT = -200
 ADVANCE_MARGIN = 120      # extra space added to each side of glyph for spacing
 
 CAP_HEIGHT = 700  # target height for uppercase letters in font units
+TOP_PUNCTUATION_CHARS = {"'", '"'}
+TOP_PUNCTUATION_BOTTOM_TARGET = 520  # place quote bottoms above the main lowercase body
 
 def glyph_name_for(character):
     """Return a TTF-safe glyph name for a character.
@@ -32,6 +47,8 @@ def glyph_name_for(character):
     digit_names = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
     if character.isdigit():
         return digit_names[int(character)]
+    if character in PUNCTUATION_GLYPH_NAMES:
+        return PUNCTUATION_GLYPH_NAMES[character]
     raise ValueError(f"Unsupported character: {character!r}")
 
 
@@ -61,6 +78,13 @@ def find_sample_for(character):
         if primary.exists():
             return primary
         candidates = sorted(directory.glob(f"digit_{character}_*.png"))
+    elif character in PUNCTUATION_GLYPH_NAMES:
+        glyph_name = PUNCTUATION_GLYPH_NAMES[character]
+        directory = SAMPLES_ROOT / "font_symbols" / glyph_name
+        primary = directory / f"symbol_{glyph_name}_000_primary.png"
+        if primary.exists():
+            return primary
+        candidates = sorted(directory.glob(f"symbol_{glyph_name}_*.png"))
     else:
         return None
 
@@ -107,6 +131,22 @@ def detect_baseline_for_glyph(binary_array, character):
             break
     
     return body_end
+
+
+def baseline_for_top_punctuation(binary_array, scale):
+    """Return a virtual baseline for top punctuation like quotes.
+
+    These glyphs should not sit on the text baseline like periods or commas.
+    Instead, we place their bottom around a fixed height above the baseline so
+    they render near the top of surrounding letters.
+    """
+    ink_mask = ~binary_array
+    if not ink_mask.any():
+        return 0
+
+    rows = np.any(ink_mask, axis=1)
+    ink_bottom = int(np.where(rows)[0][-1])
+    return ink_bottom + (TOP_PUNCTUATION_BOTTOM_TARGET / scale)
 
 def trace_to_glyph(binary_array, scale, baseline_y_in_png):
     bitmap = potrace.Bitmap(binary_array)
@@ -182,7 +222,8 @@ def build_font(output_path=OUTPUT_TTF, family_name="MyHandwriting"):
     characters = (
         list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") +
         list("abcdefghijklmnopqrstuvwxyz") +
-        list("0123456789")
+        list("0123456789") +
+        list(".,?!'\":;-()")
     )
 
     # Compute a single scale factor from a reference uppercase glyph.
@@ -212,7 +253,10 @@ def build_font(output_path=OUTPUT_TTF, family_name="MyHandwriting"):
             continue
 
         binary = load_binary_image(sample_path)
-        baseline_y = detect_baseline_for_glyph(binary, character)
+        if character in TOP_PUNCTUATION_CHARS:
+            baseline_y = baseline_for_top_punctuation(binary, scale)
+        else:
+            baseline_y = detect_baseline_for_glyph(binary, character)
         glyph, width = trace_to_glyph(binary, scale, baseline_y_in_png=baseline_y)
         name = glyph_name_for(character)
 
@@ -220,6 +264,15 @@ def build_font(output_path=OUTPUT_TTF, family_name="MyHandwriting"):
         advance_widths[name] = width + ADVANCE_MARGIN
         cmap[ord(character)] = name
         glyph_order.append(name)
+
+    # Map common Unicode smart quotes to the same handwritten quote glyphs,
+    # so editors that auto-substitute punctuation still render in this font.
+    if "quotesingle" in glyphs:
+        cmap[0x2018] = "quotesingle"  # left single quotation mark
+        cmap[0x2019] = "quotesingle"  # right single quotation mark / apostrophe
+    if "quotedbl" in glyphs:
+        cmap[0x201C] = "quotedbl"     # left double quotation mark
+        cmap[0x201D] = "quotedbl"     # right double quotation mark
 
     # Assemble the TTF.
     fb = FontBuilder(UNITS_PER_EM, isTTF=True)

@@ -4,6 +4,7 @@ from pathlib import Path
 import torch
 
 from alphabet_row_segmentation import (
+    PUNCTUATION_GLYPH_NAMES,
     format_alphabet_row_prediction,
     populate_font_library_from_alphabet_row,
     save_alphabet_row_segments,
@@ -151,13 +152,17 @@ def predict_alphabet_rows(letter_model, digit_model, image_path, expected_text=N
     for row_segments in segment_alphabet_rows(image_path, expected_text=expected_text):
         row_predictions = []
         for segment in row_segments:
-            model = digit_model if (segment.character and segment.character.isdigit()) else letter_model
-            label_set = DIGIT_LABEL_SET if (segment.character and segment.character.isdigit()) else LETTER_LABEL_SET
-            tensor = digit_array_to_tensor(segment.image_array)
-            predicted_index, confidence = predict_tensor(model, tensor)
-            predicted_text = label_from_prediction(predicted_index, label_set)
-            if segment.character and segment.character.islower() and predicted_text.isalpha():
-                predicted_text = predicted_text.lower()
+            if segment.character in PUNCTUATION_GLYPH_NAMES:
+                predicted_text = segment.character
+                confidence = 1.0
+            else:
+                model = digit_model if (segment.character and segment.character.isdigit()) else letter_model
+                label_set = DIGIT_LABEL_SET if (segment.character and segment.character.isdigit()) else LETTER_LABEL_SET
+                tensor = digit_array_to_tensor(segment.image_array)
+                predicted_index, confidence = predict_tensor(model, tensor)
+                predicted_text = label_from_prediction(predicted_index, label_set)
+                if segment.character and segment.character.islower() and predicted_text.isalpha():
+                    predicted_text = predicted_text.lower()
             prediction = {
                 "index": segment.index + 1,
                 "kind": "character",

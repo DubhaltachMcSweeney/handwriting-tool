@@ -259,7 +259,7 @@ samples/processed/letters/debug_sentence_alice/
 Recognise a known-content alphabet row image with simpler row-by-row segmentation instead of sentence dictionary repair.
 
 ```bash
-venv/bin/python src/predict_image.py samples/raw/letters/alphabet_row_upper_lower_digits_001_raw.jpeg --multi --text-mode alphabet-row
+venv/bin/python src/predict_image.py samples/raw/alphabet_rows/alphabet_row_upper_lower_digits_symbols_001_raw.jpeg --multi --text-mode alphabet-row
 ```
 
 **Typical output**
@@ -269,18 +269,19 @@ Predicted rows:
 ABCDEFGHIJKLMNOPQRSTUVWXYZ
 abcdefghijklmnopqrstuvwxyz
 1234567890
+.,?!'":;-()
 ```
 
 Optional debug segment export:
 
 ```bash
-venv/bin/python src/predict_image.py samples/raw/letters/alphabet_row_upper_lower_digits_001_raw.jpeg --multi --text-mode alphabet-row --save-segments samples/processed/letters/debug_alphabet_row_001
+venv/bin/python src/predict_image.py samples/raw/alphabet_rows/alphabet_row_upper_lower_digits_symbols_001_raw.jpeg --multi --text-mode alphabet-row --save-segments samples/processed/letters/debug_alphabet_row_001
 ```
 
 Optional export into the font library as primary glyph samples:
 
 ```bash
-venv/bin/python src/predict_image.py samples/raw/letters/alphabet_row_upper_lower_digits_001_raw.jpeg --multi --text-mode alphabet-row --populate-font-library
+venv/bin/python src/predict_image.py samples/raw/alphabet_rows/alphabet_row_upper_lower_digits_symbols_001_raw.jpeg --multi --text-mode alphabet-row --populate-font-library
 ```
 
 **Files produced**
@@ -288,6 +289,7 @@ venv/bin/python src/predict_image.py samples/raw/letters/alphabet_row_upper_lowe
 - `samples/processed/letters/debug_alphabet_row_001/`
 - `samples/font_letters/.../letter_*_000_primary.png`
 - `samples/font_digits/.../digit_*_000_primary.png`
+- `samples/font_symbols/.../symbol_*_000_primary.png`
 
 ### G. Save a correction
 
@@ -469,7 +471,7 @@ Run the full known alphabet-row workflow in one command:
 3. build the final `.ttf`
 
 ```bash
-venv/bin/python src/build_ttf_from_alphabet_row.py samples/raw/letters/alphabet_row_upper_lower_digits_001_raw.jpeg --output output/MyHandwriting.ttf --family-name "MyHandwriting"
+venv/bin/python src/build_ttf_from_alphabet_row.py samples/raw/alphabet_rows/alphabet_row_upper_lower_digits_symbols_001_raw.jpeg --output output/MyHandwriting.ttf --family-name "MyHandwriting"
 ```
 
 **Typical output**
@@ -479,21 +481,23 @@ Preview prediction:
 ABCDEFGHIJKLMNOPQRSTUVWXYZ
 abcdefghijklmnopqrstuvwxyz
 1234567890
-Preview summary: 62 segment(s), 0 mismatch(es), ...
-Exported 62 primary font sample(s) into the font library
+.,?!'":;-()
+Preview summary: 73 segment(s), 0 mismatch(es), ...
+Exported 73 primary font sample(s) into the font library
 Saved output/MyHandwriting.ttf
 ```
 
 Optional debug segment export:
 
 ```bash
-venv/bin/python src/build_ttf_from_alphabet_row.py samples/raw/letters/alphabet_row_upper_lower_digits_001_raw.jpeg --output output/MyHandwriting.ttf --family-name "MyHandwriting" --save-segments samples/processed/letters/debug_alphabet_row_001
+venv/bin/python src/build_ttf_from_alphabet_row.py samples/raw/alphabet_rows/alphabet_row_upper_lower_digits_symbols_001_raw.jpeg --output output/MyHandwriting.ttf --family-name "MyHandwriting" --save-segments samples/processed/letters/debug_alphabet_row_001
 ```
 
 **Files produced**
 
 - `samples/font_letters/.../letter_*_000_primary.png`
 - `samples/font_digits/.../digit_*_000_primary.png`
+- `samples/font_symbols/.../symbol_*_000_primary.png`
 - `samples/processed/letters/debug_alphabet_row_001/` (optional)
 - `output/MyHandwriting.ttf`
 
